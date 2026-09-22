@@ -1,0 +1,31 @@
+name: verify-integrated
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+      - run: go test -race ./...
+      - run: go vet ./...
+      - run: bash -n install.sh f.sh
+      - name: Local namespace isolation test
+        run: |
+          go test -c -o /tmp/fanout-integration.test .
+          sudo env FANOUT_NETNS_TEST=1 /tmp/fanout-integration.test -test.run '^TestNamespaceFailsClosedWithWorkingDefaultRoute$' -test.v
+      - name: Build Linux programs
+        run: |
+          mkdir -p bin
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -ldflags='-s -w' -o bin/fanout-linux-amd64 .
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -ldflags='-s -w' -o bin/fanout-linux-arm64 .
+          sha256sum bin/fanout-linux-* > BIN_SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fanout-integrated-linux
+          path: |
+            bin/
+            BIN_SHA256SUMS
