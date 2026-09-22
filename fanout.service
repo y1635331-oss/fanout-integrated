@@ -1,0 +1,15 @@
+[Unit]
+Description=Fanout Integrated SOCKS5 Gateway
+After=network-online.target
+Wants=network-online.target
+[Service]
+Type=simple
+EnvironmentFile=-/etc/default/fanout-integrated
+ExecStart=/usr/local/bin/fanout-integrated -dir /var/lib/fanout-integrated -max 20
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=90
+KillMode=mixed
+UMask=0077
+[Install]
+WantedBy=multi-user.target
