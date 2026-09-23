@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -20,6 +21,25 @@ import (
 
 func managementTLS(dir string) (*tls.Config, string, error) {
 	certPath, keyPath := os.Getenv("FANOUT_TLS_CERT"), os.Getenv("FANOUT_TLS_KEY")
+	domain := os.Getenv("FANOUT_TLS_DOMAIN")
+	if certPath == "" && keyPath == "" {
+		var cfg struct {
+			Domain string
+			Cert   string
+			Key    string
+		}
+		if b, err := os.ReadFile(filepath.Join(dir, "tls.json")); err == nil {
+			if err = json.Unmarshal(b, &cfg); err != nil {
+				return nil, "", fmt.Errorf("tls.json: %w", err)
+			}
+			certPath, keyPath, domain = cfg.Cert, cfg.Key, cfg.Domain
+			if certPath == "" || keyPath == "" || domain == "" {
+				return nil, "", fmt.Errorf("tls.json 需要 domain、cert、key")
+			}
+		} else if !os.IsNotExist(err) {
+			return nil, "", err
+		}
+	}
 	if (certPath == "") != (keyPath == "") {
 		return nil, "", fmt.Errorf("FANOUT_TLS_CERT 与 FANOUT_TLS_KEY 必须一起设置")
 	}
@@ -55,10 +75,41 @@ func managementTLS(dir string) (*tls.Config, string, error) {
 			}
 		}
 	}
-	pair, e := tls.LoadX509KeyPair(certPath, keyPath)
+	pair, e := checkedCertificate(certPath, keyPath, domain)
 	if e != nil {
 		return nil, "", e
 	}
 	sum := sha256.Sum256(pair.Certificate[0])
-	return &tls.Config{Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS12}, hex.EncodeToString(sum[:]), nil
+	config := &tls.Config{Certificates: []tls.Certificate{pair}, MinVersion: tls.VersionTLS12}
+	// Custom certificate paths may be symlinks rotated by certbot/acme.sh.
+	if domain != "" || os.Getenv("FANOUT_TLS_CERT") != "" {
+		config.Certificates = nil
+		config.GetCertificate = func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			next, err := checkedCertificate(certPath, keyPath, domain)
+			return &next, err
+		}
+	}
+	return config, hex.EncodeToString(sum[:]), nil
+}
+
+func checkedCertificate(certPath, keyPath, domain string) (tls.Certificate, error) {
+	pair, err := tls.LoadX509KeyPair(certPath, keyPath)
+	if err != nil {
+		return pair, err
+	}
+	leaf, err := x509.ParseCertificate(pair.Certificate[0])
+	if err != nil {
+		return pair, err
+	}
+	now := time.Now()
+	if now.Before(leaf.NotBefore) || !now.Before(leaf.NotAfter) {
+		return pair, fmt.Errorf("证书已过期或尚未生效")
+	}
+	if domain != "" {
+		if err = leaf.VerifyHostname(domain); err != nil {
+			return pair, fmt.Errorf("证书与域名不匹配: %w", err)
+		}
+	}
+	pair.Leaf = leaf
+	return pair, nil
 }

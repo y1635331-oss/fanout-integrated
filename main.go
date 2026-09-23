@@ -17,7 +17,7 @@ import (
 )
 
 // version 由构建时通过 -ldflags 注入。
-var version = "integrated-1.1.0"
+var version = "integrated-1.2.0"
 
 func main() {
 	var (

@@ -2,15 +2,12 @@
 set -euo pipefail
 DATA=/var/lib/fanout-integrated
 case "${1:-info}" in
+ domain|cert-check|proxy)
+   exec python3 /usr/local/lib/fanout-integrated/panel-config.py "$@";;
  info)
-   [[ -f "$DATA/password" ]] || { echo '尚未初始化，请检查 fanoutctl log';exit 1; }
-   host=$(curl -4fsS --max-time 5 https://api.ipify.org || printf '<VPS公网IP>')
-   port=$(sed -nE 's/.*"port"[[:space:]]*:[[:space:]]*([0-9]+).*/\1/p' "$DATA/settings.json")
-   base=$(cat "$DATA/basepath")
-   printf '管理地址：https://%s:%s%s/\n' "$host" "${port:-8899}" "$base"
-   printf '管理口令：';cat "$DATA/password";printf '\n'
-   if [[ -f "$DATA/web.crt" ]]; then openssl x509 -in "$DATA/web.crt" -noout -fingerprint -sha256;fi
-   echo '首次使用默认自签证书，请通过 SSH 输出核对证书指纹后信任；也可配置自己的域名证书。';;
+   python3 /usr/local/lib/fanout-integrated/panel-config.py info
+   exit 0
+   ;;
  start|stop|restart|status) systemctl "$1" fanout-integrated.service;;
  log) journalctl -u fanout-integrated -n 100 --no-pager;;
  password)
@@ -23,6 +20,8 @@ case "${1:-info}" in
    systemctl stop fanout-integrated.service
    install -m 755 /usr/local/bin/fanout-integrated.previous /usr/local/bin/fanout-integrated
    systemctl start fanout-integrated.service;;
- update) echo '请下载综合版完整安装包，校验后执行 bash install.sh。不会从原版仓库覆盖。';;
- *) echo '用法：fanoutctl info|start|stop|restart|status|log|password|rollback|update';exit 1;;
+ update)
+   [[ $EUID -eq 0 ]] || { echo '请使用 sudo fanoutctl update';exit 1; }
+   exec bash /usr/local/lib/fanout-integrated/bootstrap.sh update;;
+ *) echo '用法：fanoutctl info|start|stop|restart|status|log|password|rollback|update|domain|cert-check|proxy';exit 1;;
 esac
