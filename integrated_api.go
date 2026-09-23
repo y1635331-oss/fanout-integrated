@@ -22,7 +22,7 @@ func secureRequests(next http.Handler) http.Handler {
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		r.Body = http.MaxBytesReader(w, r.Body, 5<<20)
-		mutating := map[string]bool{"/api/start": true, "/api/stop": true, "/api/swap": true, "/api/cred": true, "/api/refresh": true, "/api/provision": true, "/api/jobs/dismiss": true, "/api/xui/bind": true, "/api/xui/clone": true, "/api/xui/delete": true, "/api/panel/inbound/new": true, "/api/panel/inbound/update": true, "/api/panel/client/add": true, "/api/panel/client/del": true, "/api/panel/client/reset": true, "/api/update/apply": true, "/api/source/delete": true, "/api/pool/refresh": true, "/api/export/token": true}
+		mutating := map[string]bool{"/api/start": true, "/api/stop": true, "/api/swap": true, "/api/cred": true, "/api/refresh": true, "/api/provision": true, "/api/jobs/dismiss": true, "/api/xui/bind": true, "/api/xui/clone": true, "/api/xui/delete": true, "/api/panel/inbound/new": true, "/api/panel/inbound/update": true, "/api/panel/client/add": true, "/api/panel/client/del": true, "/api/panel/client/reset": true, "/api/update/apply": true, "/api/source/delete": true, "/api/pool/refresh": true, "/api/export/token": true, "/api/quality/refresh": true}
 		if mutating[r.URL.Path] && r.Method != "POST" {
 			http.Error(w, "请使用 POST", 405)
 			return
@@ -76,12 +76,13 @@ func exportRows(tunnels []*Tunnel, host, country string, limit int, residential 
 	rows := []ExportProxy{}
 	seen := map[string]bool{}
 	for _, t := range tunnels {
-		if t.Status != "up" || net.ParseIP(t.ExitIP) == nil || seen[t.ExitIP] || country != "" && !strings.EqualFold(country, t.Node.CountryCode) || residential && t.Quality.Type != "residential" {
+		countryCode := exitCountry(t)
+		if t.Status != "up" || net.ParseIP(t.ExitIP) == nil || seen[t.ExitIP] || country != "" && !strings.EqualFold(country, countryCode) || residential && t.Quality.Type != "residential" {
 			continue
 		}
 		seen[t.ExitIP] = true
 		u := url.URL{Scheme: "socks5", User: url.UserPassword(t.Cred.User, t.Cred.Pass), Host: net.JoinHostPort(host, strconv.Itoa(t.Port))}
-		rows = append(rows, ExportProxy{t.Slot, host, t.Port, t.Cred.User, t.Cred.Pass, t.Node.CountryCode, t.ExitIP, u.String(), t.Node.Upstream == "", t.Quality})
+		rows = append(rows, ExportProxy{t.Slot, host, t.Port, t.Cred.User, t.Cred.Pass, countryCode, t.ExitIP, u.String(), t.Node.Upstream == "", t.Quality})
 		if limit > 0 && len(rows) >= limit {
 			break
 		}
@@ -122,6 +123,7 @@ func apiProxies(m *Manager) http.HandlerFunc {
 }
 func registerIntegrated(mux *http.ServeMux, m *Manager) {
 	mux.HandleFunc("/pool", handlePoolPage)
+	mux.HandleFunc("/api/quality/refresh", apiRefreshQuality(m))
 	apiProxiesHandler = apiProxies(m)
 	mux.HandleFunc("/api/proxies", apiProxiesHandler)
 	mux.HandleFunc("/api/pool", func(w http.ResponseWriter, r *http.Request) {

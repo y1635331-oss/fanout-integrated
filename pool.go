@@ -18,13 +18,16 @@ import (
 )
 
 type IPQuality struct {
-	Type      string    `json:"type"`
-	ISP       string    `json:"isp,omitempty"`
-	Country   string    `json:"country,omitempty"`
-	CheckedAt time.Time `json:"checked_at"`
-	Error     string    `json:"error,omitempty"`
+	GeoError    string    `json:"geo_error,omitempty"`
+	GeoProvider string    `json:"geo_provider,omitempty"`
+	Type        string    `json:"type"`
+	ISP         string    `json:"isp,omitempty"`
+	Country     string    `json:"country,omitempty"`
+	CheckedAt   time.Time `json:"checked_at"`
+	Error       string    `json:"error,omitempty"`
 }
 type PoolConfig struct {
+	GeoLookup       bool   `json:"geo_lookup"`
 	Auto            bool   `json:"auto"`
 	Target          int    `json:"target"`
 	Country         string `json:"country"`
@@ -50,6 +53,8 @@ type NodeHistory struct {
 	RetryAt  time.Time `json:"retry_at"`
 }
 type PoolStore struct {
+	geoMu       sync.Mutex
+	geoCache    map[string]IPQuality
 	mu          sync.Mutex
 	refreshMu   sync.Mutex
 	dir         string
@@ -60,7 +65,7 @@ type PoolStore struct {
 }
 
 func NewPoolStore(dir string) (*PoolStore, error) {
-	p := &PoolStore{dir: dir, Settings: PoolConfig{Target: 5, RefreshMinutes: 10}, History: map[string]NodeHistory{}}
+	p := &PoolStore{dir: dir, Settings: PoolConfig{Target: 5, RefreshMinutes: 10, GeoLookup: true}, History: map[string]NodeHistory{}}
 	b, e := os.ReadFile(filepath.Join(dir, "pool.json"))
 	if e == nil {
 		if e = json.Unmarshal(b, p); e != nil {
@@ -409,6 +414,9 @@ func (p *PoolStore) Nodes() ([]Node, error) {
 func (p *PoolStore) CheckIP(ip string) IPQuality {
 	q := IPQuality{Type: "unknown", CheckedAt: time.Now()}
 	c := p.Config()
+	if c.GeoLookup && net.ParseIP(ip) != nil {
+		q = p.lookupGeo(ip)
+	}
 	if c.QualityURL == "" {
 		return q
 	}
@@ -437,8 +445,12 @@ func (p *PoolStore) CheckIP(ip string) IPQuality {
 	default:
 		q.Error = "未知检测类型"
 	}
-	q.ISP = answer.ISP
-	q.Country = answer.Country
+	if answer.ISP != "" {
+		q.ISP = answer.ISP
+	}
+	if code := normalizedCountry(answer.Country); code != "" {
+		q.Country = code
+	}
 	return q
 }
 func (m *Manager) WatchPool(ctx context.Context) {

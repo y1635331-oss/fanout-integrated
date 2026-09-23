@@ -19,7 +19,7 @@ import (
 	"time"
 )
 
-const updateRepo = "byJoey/fanout"
+const updateRepo = "y1635331-oss/fanout-integrated"
 
 // releaseInfo 是 GitHub Releases API 里我们关心的字段。
 type releaseInfo struct {

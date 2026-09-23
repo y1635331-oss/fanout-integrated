@@ -20,6 +20,7 @@ type Manager struct {
 	jobs         JobStore
 	saveMu       sync.Mutex
 	refreshMu    sync.Mutex
+	qualityMu    sync.Mutex
 	connectLimit chan struct{}
 	pool         *PoolStore
 	shutting     bool
