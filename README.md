@@ -7,7 +7,7 @@
 在 Ubuntu/Debian VPS 执行（需已安装 curl 和 CA 证书）：
 
 ```bash
-curl -fsSL --retry 3 https://raw.githubusercontent.com/y1635331-oss/fanout-integrated/main/bootstrap.sh -o /tmp/fanout-bootstrap.sh && sudo bash /tmp/fanout-bootstrap.sh
+f=$(mktemp) && curl -fsSL --retry 3 https://raw.githubusercontent.com/y1635331-oss/fanout-integrated/main/bootstrap.sh -o "$f" && sudo bash "$f" && rm -f "$f"
 ```
 
 已安装的 1.0/1.1 版本也可以执行上面命令更新；它保留现有配置。升级到 1.2.0 后使用：
