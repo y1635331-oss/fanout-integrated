@@ -36,14 +36,16 @@ type Tunnel struct {
 	Cred    SocksCred `json:"cred"`
 	Quality IPQuality `json:"quality"`
 
-	ns          string
-	listener    net.Listener
-	ovpn        *exec.Cmd
-	mu          sync.Mutex
-	opMu        sync.Mutex
-	closed      bool
-	processDone chan error
-	accepting   chan struct{}
+	coreDir         string
+	runtimeUpstream string
+	ns              string
+	listener        net.Listener
+	ovpn            *exec.Cmd
+	mu              sync.Mutex
+	opMu            sync.Mutex
+	closed          bool
+	processDone     chan error
+	accepting       chan struct{}
 }
 
 func (t *Tunnel) nsName() string { return fmt.Sprintf("fi%d", t.Slot) }
@@ -274,6 +276,12 @@ func (t *Tunnel) probeExitIP() (string, error) {
 }
 func (t *Tunnel) dial() func(string, string) (net.Conn, error) {
 	v := t.snapshot()
+	if coreEndpoint(v.Node.Upstream) {
+		if v.runtimeUpstream == "" {
+			return func(string, string) (net.Conn, error) { return nil, fmt.Errorf("订阅内核未就绪") }
+		}
+		return upstreamDialer(v.runtimeUpstream)
+	}
 	if v.Node.Upstream != "" {
 		return upstreamDialer(v.Node.Upstream)
 	}
@@ -282,7 +290,7 @@ func (t *Tunnel) dial() func(string, string) (net.Conn, error) {
 func (t *Tunnel) snapshot() *Tunnel {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return &Tunnel{Slot: t.Slot, Port: t.Port, Node: t.Node, Status: t.Status, ExitIP: t.ExitIP, Err: t.Err, Since: t.Since, Cred: t.Cred, Quality: t.Quality}
+	return &Tunnel{Slot: t.Slot, Port: t.Port, Node: t.Node, Status: t.Status, ExitIP: t.ExitIP, Err: t.Err, Since: t.Since, Cred: t.Cred, Quality: t.Quality, runtimeUpstream: t.runtimeUpstream}
 }
 func (t *Tunnel) MarshalJSON() ([]byte, error) {
 	v := t.snapshot()
@@ -303,6 +311,9 @@ func (t *Tunnel) state(status, msg string) {
 
 // cleanup is serialized by opMu. It never releases a slot until child teardown completes.
 func (t *Tunnel) cleanup() {
+	t.mu.Lock()
+	t.runtimeUpstream = ""
+	t.mu.Unlock()
 	if t.ovpn != nil && t.ovpn.Process != nil {
 		_ = t.ovpn.Process.Kill()
 		if t.processDone != nil {
@@ -312,6 +323,10 @@ func (t *Tunnel) cleanup() {
 			}
 		}
 		t.ovpn = nil
+	}
+	if t.coreDir != "" {
+		_ = os.RemoveAll(t.coreDir)
+		t.coreDir = ""
 	}
 	if t.snapshot().Node.Upstream == "" {
 		t.teardownNetns()

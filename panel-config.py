@@ -61,6 +61,10 @@ def check(cfg):
         raise ValueError('证书尚未生效，请检查证书和系统时间')
     return dates
 
+def base_path():
+    value = (DATA / 'basepath').read_text().strip().strip('/')
+    return '/' + value if value else ''
+
 def health():
     settings = load('settings.json', {'port': 8899})
     addr = settings.get('listen_addr') or '127.0.0.1'
@@ -68,7 +72,7 @@ def health():
         addr = '127.0.0.1' if addr == '0.0.0.0' else '::1'
     if ':' in addr:
         addr = '[' + addr + ']'
-    base = (DATA / 'basepath').read_text().strip()
+    base = base_path()
     # Local readiness only; no password, cookie or external request is sent.
     context = ssl._create_unverified_context()
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}), urllib.request.HTTPSHandler(context=context))
@@ -85,7 +89,7 @@ def info():
             ipaddress.ip_address(host)
         except Exception:
             host = '<VPS公网IP>'
-    base = (DATA / 'basepath').read_text().strip()
+    base = base_path()
     port = settings.get('port', 8899)
     print(f'管理地址：https://{host}' + (f':{port}' if port != 443 else '') + base + '/')
     print('管理口令：' + (DATA / 'password').read_text().strip())

@@ -2,6 +2,7 @@
 set -euo pipefail
 DATA=/var/lib/fanout-integrated
 case "${1:-info}" in
+ core-install) exec bash /usr/local/lib/fanout-integrated/core-install.sh;;
  domain|cert-check|proxy)
    exec python3 /usr/local/lib/fanout-integrated/panel-config.py "$@";;
  info)
@@ -23,5 +24,5 @@ case "${1:-info}" in
  update)
    [[ $EUID -eq 0 ]] || { echo '请使用 sudo fanoutctl update';exit 1; }
    exec bash /usr/local/lib/fanout-integrated/bootstrap.sh update;;
- *) echo '用法：fanoutctl info|start|stop|restart|status|log|password|rollback|update|domain|cert-check|proxy';exit 1;;
+ *) echo '用法：fanoutctl info|start|stop|restart|status|log|password|rollback|update|domain|cert-check|proxy|core-install';exit 1;;
 esac

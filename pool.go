@@ -12,12 +12,14 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
 )
 
 type IPQuality struct {
+	LatencyMS   int64     `json:"latency_ms,omitempty"`
 	GeoError    string    `json:"geo_error,omitempty"`
 	GeoProvider string    `json:"geo_provider,omitempty"`
 	Type        string    `json:"type"`
@@ -36,21 +38,24 @@ type PoolConfig struct {
 	QualityURL      string `json:"quality_url"`
 }
 type Source struct {
-	ID      string    `json:"id"`
-	Name    string    `json:"name"`
-	Kind    string    `json:"kind"`
-	URL     string    `json:"url,omitempty"`
-	Content string    `json:"content,omitempty"`
-	Country string    `json:"country"`
-	User    string    `json:"user,omitempty"`
-	Pass    string    `json:"pass,omitempty"`
-	Updated time.Time `json:"updated"`
-	Error   string    `json:"error,omitempty"`
+	Accepted int       `json:"accepted"`
+	Skipped  int       `json:"skipped"`
+	ID       string    `json:"id"`
+	Name     string    `json:"name"`
+	Kind     string    `json:"kind"`
+	URL      string    `json:"url,omitempty"`
+	Content  string    `json:"content,omitempty"`
+	Country  string    `json:"country"`
+	User     string    `json:"user,omitempty"`
+	Pass     string    `json:"pass,omitempty"`
+	Updated  time.Time `json:"updated"`
+	Error    string    `json:"error,omitempty"`
 }
 type NodeHistory struct {
-	Success  int       `json:"success"`
-	Failures int       `json:"failures"`
-	RetryAt  time.Time `json:"retry_at"`
+	LatencyMS int64     `json:"latency_ms,omitempty"`
+	Success   int       `json:"success"`
+	Failures  int       `json:"failures"`
+	RetryAt   time.Time `json:"retry_at"`
 }
 type PoolStore struct {
 	geoMu       sync.Mutex
@@ -221,6 +226,9 @@ func sourceNodes(s Source) ([]Node, error) {
 		country = "UN"
 	}
 	switch s.Kind {
+	case "subscription":
+		nodes, _, err := subscriptionNodes(s)
+		return nodes, err
 	case "openvpn":
 		_, e := safeOpenVPNConfig(s.Content)
 		if e != nil {
@@ -286,8 +294,13 @@ func (p *PoolStore) Add(s Source) error {
 		return e
 	}
 	s.ID = id
-	if _, e = sourceNodes(s); e != nil {
-		return e
+	nodes, parseErr := sourceNodes(s)
+	if parseErr != nil {
+		return parseErr
+	}
+	s.Accepted = len(nodes)
+	if s.Kind == "subscription" {
+		_, s.Skipped, _ = subscriptionNodes(s)
 	}
 	s.Updated = time.Now()
 	p.mu.Lock()
@@ -372,7 +385,12 @@ func (p *PoolStore) Refresh() {
 		b, e := fetchFeed(s.URL)
 		if e == nil {
 			s.Content = string(b)
-			_, e = sourceNodes(s)
+			var nodes []Node
+			nodes, e = sourceNodes(s)
+			s.Accepted = len(nodes)
+			if s.Kind == "subscription" {
+				_, s.Skipped, _ = subscriptionNodes(s)
+			}
 		}
 		p.mu.Lock()
 		for i, v := range p.Sources {
@@ -380,6 +398,8 @@ func (p *PoolStore) Refresh() {
 				continue
 			}
 			if e == nil {
+				p.Sources[i].Accepted = s.Accepted
+				p.Sources[i].Skipped = s.Skipped
 				p.Sources[i].Content = s.Content
 				p.Sources[i].Updated = time.Now()
 				p.Sources[i].Error = ""
@@ -487,4 +507,36 @@ func (m *Manager) WatchPool(ctx context.Context) {
 			_, _ = m.Start(n)
 		}
 	}
+}
+
+// Prefer previously verified exits; latency measures an HTTPS request, not bandwidth.
+func (p *PoolStore) RecordLatency(id string, ms int64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	h := p.History[id]
+	h.LatencyMS = ms
+	p.History[id] = h
+	_ = p.saveLocked()
+}
+func (p *PoolStore) Ranked(nodes []Node) []Node {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	out := append([]Node(nil), nodes...)
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := p.History[out[i].HostName], p.History[out[j].HostName]
+		if (a.Success > 0) != (b.Success > 0) {
+			return a.Success > 0
+		}
+		if a.Failures != b.Failures {
+			return a.Failures < b.Failures
+		}
+		if (a.LatencyMS > 0) != (b.LatencyMS > 0) {
+			return a.LatencyMS > 0
+		}
+		if a.LatencyMS > 0 {
+			return a.LatencyMS < b.LatencyMS
+		}
+		return false
+	})
+	return out
 }

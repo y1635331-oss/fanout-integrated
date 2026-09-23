@@ -139,7 +139,7 @@ func registerIntegrated(mux *http.ServeMux, m *Manager) {
 			}
 		}
 		nodes, at := m.Nodes()
-		writeJSON(w, 200, map[string]any{"config": m.pool.Config(), "sources": m.pool.Views(), "node_count": len(nodes), "fetched": at, "max": m.maxSlots, "public_ip": hostPublicIP(), "tunnels": m.Tunnels(), "jobs": m.jobs.Views(), "version": version})
+		writeJSON(w, 200, map[string]any{"config": m.pool.Config(), "sources": m.pool.Views(), "node_count": len(nodes), "fetched": at, "max": m.maxSlots, "public_ip": hostPublicIP(), "tunnels": m.Tunnels(), "jobs": m.jobs.Views(), "version": version, "subscription_core": subscriptionCoreReady()})
 	})
 	mux.HandleFunc("/api/sources", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {

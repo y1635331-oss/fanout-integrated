@@ -129,7 +129,11 @@ func (m *Manager) pickNodes(region string, count int) ([]Node, error) {
 	}
 
 	var out []Node
-	for _, n := range m.nodes {
+	nodes := m.nodes
+	if m.pool != nil {
+		nodes = m.pool.Ranked(nodes)
+	}
+	for _, n := range nodes {
 		if len(out) >= count {
 			break
 		}

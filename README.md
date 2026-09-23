@@ -70,3 +70,26 @@ sudo bash install.sh
 ## 许可
 
 保留原项目 MIT 许可与版权署名，见 [LICENSE](LICENSE)。
+
+
+## v1.3.0 多来源订阅与更新修复
+
+修复 1.2.0 启动检测遗漏登录路径前导斜杠导致误判更新失败的问题，并修正管理地址显示。
+
+升级命令与前文相同。首次使用多协议来源，在 VPS 执行：
+
+```bash
+sudo fanoutctl core-install
+```
+
+从 SagerNet 官方下载固定版本 sing-box 1.14.1，并校验固定 SHA256。该内核独立运行，按官方 GPL 许可证分发；本安装包不捆绑其二进制。已有 OpenVPN、HTTP、SOCKS5 来源不依赖内核。
+
+面板新增 freesub、Au1rxx、proxy-pool、snakem982、awesome-vpn、freeSub、NoMoreWalls 七个公开订阅入口。各来源最多载入 2000 个候选，跨来源按实际连接参数去重；名称或来源自称“住宅”不作为判断依据。
+
+自动识别 sing-box JSON(outbounds)、Clash YAML(proxies)、Base64 和逐行链接。常见 VLESS、VMess、Trojan、Shadowsocks、Hysteria2、TUIC、AnyTLS 参数受支持；不支持 SSR、WireGuard、Mieru、SS 插件、任意 CSV，以及部分扩展传输。高级特性不保证兼容；启动前再用 sing-box check 检查。要求关闭 TLS 验证的节点会跳过。面板展示导入与跳过数量；这些数量不是在线节点数。
+
+使用顺序：安装内核 → 点击来源 → 先选“不限地区”建立 1—3 个出口 → 查看真实出口 IP、国家/ISP、HTTPS 请求耗时 → 导出可用 S5。候选国家未知不表示没有分类功能；连接后按出口 IP 查询。此版本多协议转换输出支持 TCP；不宣称 UDP 可用。每个运行出口一个核心进程，低内存 VPS 请从少量出口开始。
+
+仅提取连接参数，不采用订阅中的入站、路由、脚本、插件、控制接口或本地证书路径。内核监听本机并使用随机认证，只有经过检查的出口可提取；内核退出不会回退 VPS 直连。来源刷新失败保留上一份有效数据；连接失败有重试冷却，已验证成功的节点和较低 HTTPS 请求耗时优先。请求耗时不等于下载带宽。
+
+来源说明：SSAggregator 已跳转到 V2RayAggregator，不重复接入；submerge 是 mihomo 订阅管理器架构参考，并非额外 IP 来源；3x-ui 是管理面板，不是公开节点源。没有复制上述项目的实现代码。

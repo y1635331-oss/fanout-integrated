@@ -11,6 +11,19 @@ panel = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(panel)
 
 class PanelConfigTest(unittest.TestCase):
+    def test_health_uses_normalized_path(self):
+        from unittest.mock import MagicMock
+        with tempfile.TemporaryDirectory() as d:
+            data = Path(d)
+            (data/'settings.json').write_text('{"port":8899,"listen_addr":"127.0.0.1"}')
+            opener = MagicMock()
+            opener.open.return_value.__enter__.return_value.status = 200
+            for raw, expected in [('abc123', '/abc123'), ('/abc123/', '/abc123'), ('', '')]:
+                (data/'basepath').write_text(raw)
+                with patch.object(panel,'DATA',data), patch.object(panel.urllib.request,'build_opener',return_value=opener):
+                    self.assertTrue(panel.health())
+                    opener.open.assert_called_with('https://127.0.0.1:8899'+expected+'/', timeout=2)
+
     def test_domain_rejects_urls_and_injection(self):
         for value in ('https://panel.example.com', 'a.example.com:443', 'x.example.com;echo', '127.0.0.1', '*.example.com', '-a.example.com'):
             with self.assertRaises(ValueError):

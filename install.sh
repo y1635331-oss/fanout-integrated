@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -Eeuo pipefail
+failed_line=unknown
+trap 'failed_line=$LINENO' ERR
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
 [[ $EUID -eq 0 ]] || { echo '请使用 sudo bash install.sh'; exit 1; }
 exec 9>/run/fanout-integrated-install.lock
@@ -57,7 +59,7 @@ recover() {
   result=$?
   trap - EXIT
   if ((result != 0 && had_binary == 1)); then
-    echo "更新失败，正在恢复原程序；配置备份：$backup"
+    echo "更新失败（安装脚本第 $failed_line 行），正在恢复原程序；配置备份：$backup"
     systemctl stop fanout-integrated.service 2>/dev/null || true
     install -m 755 "$backup/program" /usr/local/bin/fanout-integrated
     [[ ! -f "$backup/fanout-integrated.service" ]] || cp -a "$backup/fanout-integrated.service" /etc/systemd/system/fanout-integrated.service
@@ -77,6 +79,7 @@ install -m 755 "$binary" /usr/local/bin/fanout-integrated.new
 mv -f /usr/local/bin/fanout-integrated.new /usr/local/bin/fanout-integrated
 install -m 755 f.sh /usr/local/bin/fanoutctl
 install -d -m 755 /usr/local/lib/fanout-integrated
+install -m 755 core-install.sh /usr/local/lib/fanout-integrated/core-install.sh
 install -m 755 bootstrap.sh /usr/local/lib/fanout-integrated/bootstrap.sh
 install -m 755 panel-config.py /usr/local/lib/fanout-integrated/panel-config.py
 cat > /etc/systemd/system/fanout-integrated.service <<EOF

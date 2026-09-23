@@ -280,6 +280,11 @@ func (m *Manager) tunnelActive(t *Tunnel) bool {
 	return !closing && cur == t && t.snapshot().Status != "stopped"
 }
 func (m *Manager) tryNode(t *Tunnel) error {
+	if coreEndpoint(t.snapshot().Node.Upstream) {
+		if err := t.startSubscription(m.workDir); err != nil {
+			return err
+		}
+	}
 	if t.snapshot().Node.Upstream == "" {
 		if err := t.setupNetns(); err != nil {
 			return err
@@ -288,7 +293,9 @@ func (m *Manager) tryNode(t *Tunnel) error {
 			return err
 		}
 	}
+	probeStarted := time.Now()
 	ip, err := t.probeExitIP()
+	probeMS := time.Since(probeStarted).Milliseconds()
 	if err != nil {
 		return err
 	}
@@ -321,6 +328,7 @@ func (m *Manager) tryNode(t *Tunnel) error {
 		}
 	}
 	t.mu.Lock()
+	quality.LatencyMS = probeMS
 	t.Quality = quality
 	t.Since = time.Now()
 	t.mu.Unlock()
@@ -328,6 +336,9 @@ func (m *Manager) tryNode(t *Tunnel) error {
 		if err = t.serve(); err != nil {
 			return err
 		}
+	}
+	if m.pool != nil {
+		m.pool.RecordLatency(t.snapshot().Node.HostName, probeMS)
 	}
 	return nil
 }

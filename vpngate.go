@@ -104,6 +104,13 @@ func fetchNodesFrom(url, key string, timeout time.Duration) ([]Node, error) {
 // parseNodeCSV 解析 VPN Gate 的 CSV。首行是 "*vpn_servers"，
 // 第二行是以 '#' 开头的表头，末行是 "*"。
 func parseNodeCSV(body string) ([]Node, error) {
+	body = strings.TrimSpace(strings.TrimPrefix(body, "\ufeff"))
+	if strings.HasPrefix(body, "<") {
+		return nil, fmt.Errorf("VPN Gate 返回了网页，可能是网络拦截或服务异常；其他已添加来源仍可使用")
+	}
+	if !strings.Contains(body, "OpenVPN_ConfigData_Base64") {
+		return nil, fmt.Errorf("不是 VPN Gate CSV；节点订阅请使用多协议订阅类型导入")
+	}
 	var kept []string
 	for _, line := range strings.Split(body, "\n") {
 		line = strings.TrimRight(line, "\r")
