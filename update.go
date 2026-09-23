@@ -82,7 +82,7 @@ func fetchLatestRelease() (*releaseInfo, error) {
 
 // checkUpdate 比对当前版本与最新 release。
 func checkUpdate() (*UpdateStatus, error) {
-	return &UpdateStatus{Current: version, Latest: version, Notes: "综合版请使用本项目离线安装包升级，禁止原版覆盖"}, nil
+	return checkUpstreamUpdate()
 }
 
 func checkUpstreamUpdate() (*UpdateStatus, error) {
@@ -90,7 +90,7 @@ func checkUpstreamUpdate() (*UpdateStatus, error) {
 	if err != nil {
 		return nil, err
 	}
-	cur := strings.TrimSpace(version)
+	cur := strings.TrimPrefix(strings.TrimSpace(version), "integrated-")
 	latest := strings.TrimSpace(rel.TagName)
 	st := &UpdateStatus{
 		Current:   cur,

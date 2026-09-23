@@ -72,6 +72,13 @@ func (p *PoolStore) lookupGeo(ip string) IPQuality {
 			q = parseGeo(b, ip)
 		}
 	}
+	if q.GeoError != "" {
+		fallback := fallbackGeo(ip)
+		if fallback.GeoError == "" {
+			q = fallback
+		}
+	}
+	q = networkHint(q)
 	if p.geoCache == nil || len(p.geoCache) >= 4096 {
 		p.geoCache = make(map[string]IPQuality)
 	}
@@ -101,7 +108,11 @@ func apiRefreshQuality(m *Manager) http.HandlerFunc {
 				m.mu.RLock()
 				original := m.tunnels[v.Slot]
 				m.mu.RUnlock()
+				m.pool.geoMu.Lock()
+				delete(m.pool.geoCache, v.ExitIP)
+				m.pool.geoMu.Unlock()
 				q := m.pool.CheckIP(v.ExitIP)
+				q.LatencyMS = v.Quality.LatencyMS
 				m.mu.RLock()
 				if original != nil && m.tunnels[v.Slot] == original {
 					original.mu.Lock()

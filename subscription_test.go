@@ -64,11 +64,25 @@ func TestSubscriptionLiveSourceSamples(t *testing.T) {
 		if e != nil {
 			t.Fatal(e)
 		}
-		ns, skip, e := subscriptionNodes(Source{Content: string(b)})
+		kind := "subscription"
+		if entry.Name() == "monosans.json" {
+			kind = "metadata"
+		}
+		if entry.Name() == "rooster.txt" {
+			kind = "socks5"
+		}
+		ns, e := sourceNodes(Source{Kind: kind, Content: string(b)})
+		skip := 0
 		if e != nil {
 			t.Errorf("%s: %v", entry.Name(), e)
 		} else {
-			t.Logf("%s: accepted=%d skipped=%d", entry.Name(), len(ns), skip)
+			classified := 0
+			for _, n := range ns {
+				if normalizedCountry(n.CountryCode) != "" {
+					classified++
+				}
+			}
+			t.Logf("%s: accepted=%d source_country=%d skipped=%d", entry.Name(), len(ns), classified, skip)
 		}
 	}
 }

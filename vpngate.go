@@ -38,19 +38,21 @@ func mirrorAccessKey() string {
 
 // Node 是一个 VPN Gate 节点。
 type Node struct {
-	Source      string  `json:"source,omitempty"`
-	Kind        string  `json:"kind,omitempty"`
-	Upstream    string  `json:"-"`
-	VPNUser     string  `json:"-"`
-	VPNPass     string  `json:"-"`
-	HostName    string  `json:"hostname"`
-	IP          string  `json:"ip"`
-	Country     string  `json:"country"`
-	CountryCode string  `json:"country_code"`
-	Ping        int     `json:"ping"`
-	SpeedMbps   float64 `json:"speed_mbps"`
-	Sessions    int     `json:"sessions"`
-	Config      string  `json:"-"` // 解码后的 .ovpn 内容
+	Label        string  `json:"label,omitempty"`
+	CountryBasis string  `json:"country_basis,omitempty"`
+	Source       string  `json:"source,omitempty"`
+	Kind         string  `json:"kind,omitempty"`
+	Upstream     string  `json:"-"`
+	VPNUser      string  `json:"-"`
+	VPNPass      string  `json:"-"`
+	HostName     string  `json:"hostname"`
+	IP           string  `json:"ip"`
+	Country      string  `json:"country"`
+	CountryCode  string  `json:"country_code"`
+	Ping         int     `json:"ping"`
+	SpeedMbps    float64 `json:"speed_mbps"`
+	Sessions     int     `json:"sessions"`
+	Config       string  `json:"-"` // 解码后的 .ovpn 内容
 }
 
 // fetchNodes 拉取并解析 VPN Gate 的节点列表。

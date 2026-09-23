@@ -19,6 +19,8 @@ import (
 )
 
 type IPQuality struct {
+	Network     string    `json:"network,omitempty"`
+	Evidence    string    `json:"evidence,omitempty"`
 	LatencyMS   int64     `json:"latency_ms,omitempty"`
 	GeoError    string    `json:"geo_error,omitempty"`
 	GeoProvider string    `json:"geo_provider,omitempty"`
@@ -29,6 +31,7 @@ type IPQuality struct {
 	Error       string    `json:"error,omitempty"`
 }
 type PoolConfig struct {
+	ExportHost      string `json:"export_host"`
 	GeoLookup       bool   `json:"geo_lookup"`
 	Auto            bool   `json:"auto"`
 	Target          int    `json:"target"`
@@ -103,6 +106,11 @@ func (p *PoolStore) saveLocked() error {
 }
 func (p *PoolStore) Config() PoolConfig { p.mu.Lock(); defer p.mu.Unlock(); return p.Settings }
 func (p *PoolStore) SetConfig(c PoolConfig, max int) error {
+	var hostErr error
+	c.ExportHost, hostErr = validateExportHost(c.ExportHost)
+	if hostErr != nil {
+		return hostErr
+	}
 	c.Country = strings.ToUpper(strings.TrimSpace(c.Country))
 	if c.Target < 1 || c.Target > max || c.RefreshMinutes < 2 || c.RefreshMinutes > 1440 || len(c.Country) > 2 {
 		return fmt.Errorf("数量须在 1-%d，刷新间隔 2-1440 分钟，国家填两位代码", max)
@@ -226,8 +234,13 @@ func sourceNodes(s Source) ([]Node, error) {
 		country = "UN"
 	}
 	switch s.Kind {
+	case "metadata":
+		return metadataProxyNodes(s)
 	case "subscription":
 		nodes, _, err := subscriptionNodes(s)
+		if err == nil {
+			annotateNodes(nodes, s)
+		}
 		return nodes, err
 	case "openvpn":
 		_, e := safeOpenVPNConfig(s.Content)
@@ -301,6 +314,10 @@ func (p *PoolStore) Add(s Source) error {
 	s.Accepted = len(nodes)
 	if s.Kind == "subscription" {
 		_, s.Skipped, _ = subscriptionNodes(s)
+	} else if s.Kind == "metadata" {
+		var entries []json.RawMessage
+		_ = json.Unmarshal([]byte(s.Content), &entries)
+		s.Skipped = len(entries) - s.Accepted
 	}
 	s.Updated = time.Now()
 	p.mu.Lock()
@@ -390,6 +407,10 @@ func (p *PoolStore) Refresh() {
 			s.Accepted = len(nodes)
 			if s.Kind == "subscription" {
 				_, s.Skipped, _ = subscriptionNodes(s)
+			} else if s.Kind == "metadata" {
+				var entries []json.RawMessage
+				_ = json.Unmarshal([]byte(s.Content), &entries)
+				s.Skipped = len(entries) - s.Accepted
 			}
 		}
 		p.mu.Lock()
@@ -438,7 +459,7 @@ func (p *PoolStore) CheckIP(ip string) IPQuality {
 		q = p.lookupGeo(ip)
 	}
 	if c.QualityURL == "" {
-		return q
+		return networkHint(q)
 	}
 	if net.ParseIP(ip) == nil {
 		return q
@@ -448,6 +469,9 @@ func (p *PoolStore) CheckIP(ip string) IPQuality {
 	if e != nil {
 		q.Error = e.Error()
 		return q
+	}
+	if classified, ok := applyIPAPI(b, ip, q); ok {
+		return classified
 	}
 	var answer struct {
 		IP      string `json:"ip"`
@@ -462,6 +486,7 @@ func (p *PoolStore) CheckIP(ip string) IPQuality {
 	switch answer.Type {
 	case "residential", "datacenter", "unknown":
 		q.Type = answer.Type
+		q.Evidence = "来自已配置的结构化分类接口"
 	default:
 		q.Error = "未知检测类型"
 	}

@@ -1250,27 +1250,10 @@ $('#updCheck').onclick = async e => {
 
 // 一键更新：后端下载替换二进制并重启服务，进程重启期间界面会短暂断连
 $('#updApply').onclick = async e => {
-  if(!confirm('更新到 ' + $('#updApplyVer').textContent + '？服务会重启，界面会短暂断开。')) return;
-  e.target.disabled = true;
-  e.target.textContent = '更新中…';
-  try{
-    const r = await api('/api/update/apply', {method:'POST'});
-    if(r.restarting){
-      $('#updNotes').textContent = '已下载新版本，服务正在重启，几秒后刷新页面即可。';
-      $('#updNotes').hidden = false;
-      toast('更新中，服务重启后刷新页面');
-      // 给服务重启留点时间再自动刷新
-      setTimeout(() => location.reload(), 6000);
-    } else {
-      toast(r.message || '已是最新版');
-      e.target.disabled = false;
-      e.target.textContent = '更新到 ' + $('#updApplyVer').textContent;
-    }
-  }catch(err){
-    toast(err.message, true);
-    e.target.disabled = false;
-    e.target.textContent = '更新到 ' + $('#updApplyVer').textContent;
-  }
+ if(!confirm('更新会短暂重启服务，是否开始？'))return;
+ e.target.disabled=true;
+ try{await api('/api/maintenance',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'app-update'})});location.href='./#maintenance';}
+ catch(err){toast(err.message,true);e.target.disabled=false;}
 };
 
 // 端口/监听地址变了要提示用户之后从新地址进；密码/路径可原地生效

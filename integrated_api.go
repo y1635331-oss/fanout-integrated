@@ -95,9 +95,9 @@ func apiProxies(m *Manager) http.HandlerFunc {
 			http.Error(w, "GET required", 405)
 			return
 		}
-		host := hostPublicIP()
-		if net.ParseIP(host) == nil {
-			http.Error(w, "VPS 公网 IP 未确定，请使用 -ip 启动参数指定", 503)
+		host := m.exportHost()
+		if host == "" {
+			http.Error(w, "连接地址未确定，请在面板填写代理连接域名或 IP", 503)
 			return
 		}
 		limit, _ := strconv.Atoi(r.URL.Query().Get("count"))
@@ -124,6 +124,7 @@ func apiProxies(m *Manager) http.HandlerFunc {
 func registerIntegrated(mux *http.ServeMux, m *Manager) {
 	mux.HandleFunc("/pool", handlePoolPage)
 	mux.HandleFunc("/api/quality/refresh", apiRefreshQuality(m))
+	mux.HandleFunc("/api/maintenance", apiMaintenance(m))
 	apiProxiesHandler = apiProxies(m)
 	mux.HandleFunc("/api/proxies", apiProxiesHandler)
 	mux.HandleFunc("/api/pool", func(w http.ResponseWriter, r *http.Request) {
@@ -139,7 +140,7 @@ func registerIntegrated(mux *http.ServeMux, m *Manager) {
 			}
 		}
 		nodes, at := m.Nodes()
-		writeJSON(w, 200, map[string]any{"config": m.pool.Config(), "sources": m.pool.Views(), "node_count": len(nodes), "fetched": at, "max": m.maxSlots, "public_ip": hostPublicIP(), "tunnels": m.Tunnels(), "jobs": m.jobs.Views(), "version": version, "subscription_core": subscriptionCoreReady()})
+		writeJSON(w, 200, map[string]any{"config": m.pool.Config(), "sources": m.pool.Views(), "node_count": len(nodes), "fetched": at, "max": m.maxSlots, "public_ip": hostPublicIP(), "export_host": m.exportHost(), "tunnels": m.Tunnels(), "jobs": m.jobs.Views(), "version": version, "subscription_core": subscriptionCoreReady()})
 	})
 	mux.HandleFunc("/api/sources", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "POST" {

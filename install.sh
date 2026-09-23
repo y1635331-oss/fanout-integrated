@@ -79,6 +79,7 @@ install -m 755 "$binary" /usr/local/bin/fanout-integrated.new
 mv -f /usr/local/bin/fanout-integrated.new /usr/local/bin/fanout-integrated
 install -m 755 f.sh /usr/local/bin/fanoutctl
 install -d -m 755 /usr/local/lib/fanout-integrated
+install -m 755 maintenance.sh /usr/local/lib/fanout-integrated/maintenance.sh
 install -m 755 core-install.sh /usr/local/lib/fanout-integrated/core-install.sh
 install -m 755 bootstrap.sh /usr/local/lib/fanout-integrated/bootstrap.sh
 install -m 755 panel-config.py /usr/local/lib/fanout-integrated/panel-config.py
@@ -113,6 +114,6 @@ done
 [[ $ready == 1 ]] && systemctl is-active --quiet fanout-integrated.service || { journalctl -u fanout-integrated -n 30 --no-pager;exit 1; }
 trap - EXIT
 echo "安装完成。更新前的配置备份：$backup"
-fanoutctl info
+if [[ ${FANOUT_NONINTERACTIVE:-0} != 1 ]]; then fanoutctl info; fi
 echo '请按云安全组规则放行管理端口和实际使用的 SOCKS5 端口。'
 echo '直接生成 S5 不需要 Xray。高级节点功能可复用现有 3x-ui / Xray。'

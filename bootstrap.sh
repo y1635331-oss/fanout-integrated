@@ -24,7 +24,7 @@ echo "正在下载 $tag…"
 fetch "$REPO/releases/download/$tag/$asset" "$scratch/$asset"
 fetch "$REPO/releases/download/$tag/$sum" "$scratch/$sum"
 cd -- "$scratch"
-awk -v name="$asset" '$2 == name {print}' "$sum" > selected.sha256
+awk -v name="$asset" '{sub(/\r$/, ""); if ($2 == name) print}' "$sum" > selected.sha256
 [[ $(wc -l < selected.sha256) -eq 1 ]] || { echo '校验文件缺失或重复，已停止'; exit 1; }
 sha256sum --strict -c selected.sha256
 tar --no-same-owner --no-same-permissions -xzf "$asset"

@@ -386,3 +386,13 @@ func subscriptionNodes(s Source) ([]Node, int, error) {
 
 func coreEndpoint(raw string) bool             { return strings.HasPrefix(raw, "singbox://") }
 func coreAddress(host string, port int) string { return net.JoinHostPort(host, strconv.Itoa(port)) }
+
+func clashMetadata(body string) []map[string]any {
+	var doc struct {
+		Proxies []map[string]any `yaml:"proxies"`
+	}
+	if yaml.Unmarshal([]byte(body), &doc) != nil {
+		return nil
+	}
+	return doc.Proxies
+}

@@ -31,6 +31,12 @@ export FANOUT_FIXTURE="$fixture"
 export PATH="$fixture/bin:$PATH"
 bash "$base/bootstrap.sh"
 [[ $(cat "$fixture/installed") == installed ]]
+# Windows-generated checksum manifests must verify without disabling hashes.
+sed 's/$/\r/' "$fixture/SHA256SUMS-v9.9.9.txt" > "$fixture/crlf.txt"
+mv "$fixture/crlf.txt" "$fixture/SHA256SUMS-v9.9.9.txt"
+bash "$base/bootstrap.sh"
+[[ $(cat "$fixture/installed") == installed ]]
+
 rm "$fixture/installed"
 printf 'corrupt' >> "$fixture/fanout-integrated-v9.9.9.tar.gz"
 if bash "$base/bootstrap.sh"; then echo 'ERROR: corrupted archive accepted';exit 1;fi
